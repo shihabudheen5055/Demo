@@ -45,8 +45,25 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddEndpointsApiExplorer();
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("postgres", StringComparison.OrdinalIgnoreCase))
+{
+    var uri = new Uri(connectionString);
+    var userInfo = uri.UserInfo.Split(':');
+    var csBuilder = new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.IsDefaultPort ? 5432 : uri.Port,
+        Username = userInfo.Length > 0 ? userInfo[0] : "",
+        Password = userInfo.Length > 1 ? userInfo[1] : "",
+        Database = uri.LocalPath.TrimStart('/'),
+        SslMode = Npgsql.SslMode.Require
+    };
+    connectionString = csBuilder.ToString();
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddTransient<IEmailSender, SmtpEmailSender>();
 builder.Services.AddHostedService<TelegramBotService>();
